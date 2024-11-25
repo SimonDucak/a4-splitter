@@ -43,4 +43,162 @@
             object-fit: contain;
         }
 
-        .c
+        .controls {
+            margin-top: 10px;
+        }
+
+        .fixed-print-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: #007BFF;
+            color: white;
+            padding: 22px 40px;
+            border: none;
+            border-radius: 5px;
+            font-size: 20px;
+            cursor: pointer;
+            z-index: 1000;
+        }
+
+        .fixed-print-btn:hover {
+            background-color: #0056b3;
+        }
+
+        @page {
+            size: A4;
+            margin: 0; /* Remove default margins */
+        }
+
+        @media print {
+            body {
+                margin: 0; /* Ensure no extra margins */
+            }
+
+            .controls, input, .fixed-print-btn {
+                display: none !important; /* Hide inputs and rotate buttons during print */
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="a4">
+        <div class="a5">
+            <input type="file" id="up-img">
+            <div class="controls">
+                <button class="rotate-up">Rotate</button>
+            </div>
+            <canvas></canvas>
+            <img src="" alt="">
+        </div>
+        <div class="a5">
+            <input type="file" id="down-img">
+            <div class="controls">
+                <button class="rotate-down">Rotate</button>
+            </div>
+            <canvas></canvas>
+            <img src="" alt="">
+        </div>
+    </main>
+    <button class="fixed-print-btn">Print</button>
+</body>
+
+<script>
+    const loadFile = (input, canvas, img, rotateButton) => {
+        let rotation = 0;
+
+        input.addEventListener('change', async function (e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const fileType = file.type;
+            if (fileType === 'application/pdf') {
+                const reader = new FileReader();
+                reader.onload = async function (e) {
+                    const pdfjsLib = window['pdfjs-dist/build/pdf'];
+                    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+
+                    const loadingTask = pdfjsLib.getDocument({ data: e.target.result });
+                    const pdf = await loadingTask.promise;
+                    const page = await pdf.getPage(1); // Load the first page of the PDF
+
+                    const renderPage = async () => {
+                        const viewport = page.getViewport({ scale: 1.5, rotation: rotation });
+                        canvas.width = viewport.width;
+                        canvas.height = viewport.height;
+
+                        const ctx = canvas.getContext('2d');
+                        ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear previous render
+                        const renderContext = { canvasContext: ctx, viewport: viewport };
+                        await page.render(renderContext).promise;
+
+                        canvas.style.display = 'block';
+                        img.style.display = 'none';
+                        input.style.display = 'none';
+                    };
+
+                    await renderPage();
+
+                    // Attach rotation handler
+                    rotateButton.addEventListener('click', () => {
+                        rotation = (rotation + 90) % 360; // Increment rotation
+                        renderPage();
+                    });
+                };
+                reader.readAsArrayBuffer(file);
+            } else if (fileType.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    img.src = e.target.result;
+                    img.style.display = 'block';
+                    canvas.style.display = 'none'; // Hide canvas in case it was visible
+                    input.style.display = 'none';
+
+                    // Reset rotation
+                    rotation = 0;
+                    img.style.transform = `rotate(${rotation}deg)`;
+
+                    // Attach rotation handler
+                    rotateButton.addEventListener('click', () => {
+                        rotation = (rotation + 90) % 360; // Increment rotation
+                        img.style.transform = `rotate(${rotation}deg)`;
+                    });
+                };
+                reader.readAsDataURL(file);
+            } else {
+                alert('Unsupported file type. Please upload a PDF or an image.');
+            }
+        });
+    };
+
+    const upInput = document.getElementById('up-img');
+    const downInput = document.getElementById('down-img');
+    const upCanvas = document.querySelectorAll('.a5 canvas')[0];
+    const downCanvas = document.querySelectorAll('.a5 canvas')[1];
+    const upImg = document.querySelectorAll('.a5 img')[0];
+    const downImg = document.querySelectorAll('.a5 img')[1];
+    const upRotateButton = document.querySelector('.rotate-up');
+    const downRotateButton = document.querySelector('.rotate-down');
+
+    loadFile(upInput, upCanvas, upImg, upRotateButton);
+    loadFile(downInput, downCanvas, downImg, downRotateButton);
+
+    // Print button functionality
+    const printButton = document.querySelector('.fixed-print-btn');
+    printButton.addEventListener('click', () => {
+        // Hide controls and input fields for printing
+        const controls = document.querySelectorAll('.controls');
+        controls.forEach(control => control.style.display = 'none');
+        const inputs = document.querySelectorAll('input');
+        inputs.forEach(input => input.style.display = 'none');
+
+        // Trigger print
+        window.print();
+
+        // Restore visibility of controls and input fields after printing
+        controls.forEach(control => control.style.display = '');
+        inputs.forEach(input => input.style.display = '');
+    });
+</script>
+
+</html>
